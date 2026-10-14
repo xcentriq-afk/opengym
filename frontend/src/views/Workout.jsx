@@ -5,7 +5,8 @@ import { useUI } from '../store/useUI.js'
 import { exOr } from '../lib/exercises.js'
 import { effectiveRoutine, lastEntryFor, bestWeightFor, buildSets, setsDoneActive, supersetUnits, unitOf, setLabel, modeOf, EFFORT, effortOf, stepEffort, capEffort } from '../lib/history.js'
 import { fmtNum, fmtDate, todayISO, exCount, DAYN } from '../lib/format.js'
-import { beep, vibrate } from '../lib/sound.js'
+import { beep, fanfare, vibrate } from '../lib/sound.js'
+import { prFlags } from '../lib/pr.js'
 import { t } from '../lib/i18n.js'
 import { api } from '../lib/api.js'
 import Media from '../components/Media.jsx'
@@ -63,6 +64,9 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
   const cardio = mode === 'cardio'
   const timed = mode === 'time'
   const last = lastEntryFor(S, entry.id)
+  // Hevy-style personal records for this entry, per set (parallel to entry.sets). Empty for
+  // cardio/timed modes, which carry no weight×reps to record against.
+  const prs = mode === 'reps' ? prFlags(S, entry) : null
   // The same number the "confirm your working weight" sheet calls your best, so the two
   // never disagree inside one session: heaviest logged set, or the working weight you kept.
   const best = cardio ? 0 : Math.max(bestWeightFor(S, entry.id), (S.exWeights[entry.id] || {}).w || 0)
@@ -118,17 +122,22 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
     <div className="card" style={{ marginTop: 10, marginBottom: 0 }}>
       {/* the header carries the same eff3 sizing as the rows, or the labels drift off their columns */}
       <div className={'sethead' + (col3 ? ' eff3' : '')}><span className="n-sp" /><span className="w-sp">{col1.hd}</span><span className="r-sp">{col2.hd}</span>{col3 && <span className="eff-sp">{col3.hd}</span>}{timed && <span className="ck-sp" />}<span className="ck-sp" /></div>
-      {entry.sets.map((s, i) => <div key={i} className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '')}>
-        <div className="n">{i + 1}</div>
-        {cell(s, i, col1, 'w')}
-        {cell(s, i, col2, 'r')}
-        {col3 && cell(s, i, col3, 'eff')}
-        {/* A timed set is started, not typed: the timer counts the hold down and checks the
-            set off itself. The checkbox stays for anyone who timed it on their own watch. */}
-        {timed && <button className="setgo" aria-label={t('Start set')} disabled={s.done || !!working}
-          onClick={() => onStartTimed(i)}><Icon name="play" /></button>}
-        <Check checked={s.done} onChange={() => onToggle(i)} />
-      </div>)}
+      {entry.sets.map((s, i) => {
+        const isPR = prs && prs[i] && prs[i].length
+        return <div key={i} className={'setrow' + (s.done ? ' done' : '') + (isPR ? ' pr' : '') + (col3 ? ' eff3' : '')}>
+          <div className={'n' + (isPR ? ' pr' : '')} title={isPR ? t('Personal record') : undefined}>
+            {isPR ? <Icon name="crown" /> : (i + 1)}
+          </div>
+          {cell(s, i, col1, 'w')}
+          {cell(s, i, col2, 'r')}
+          {col3 && cell(s, i, col3, 'eff')}
+          {/* A timed set is started, not typed: the timer counts the hold down and checks the
+              set off itself. The checkbox stays for anyone who timed it on their own watch. */}
+          {timed && <button className="setgo" aria-label={t('Start set')} disabled={s.done || !!working}
+            onClick={() => onStartTimed(i)}><Icon name="play" /></button>}
+          <Check checked={s.done} onChange={() => onToggle(i)} />
+        </div>
+      })}
       <div style={{ height: 8 }} />
       <div className="row">
         <Button size="sm" icon="minus" disabled={entry.sets.length <= 1} onClick={onRemoveSet}>{t('Remove set')}</Button>
@@ -191,6 +200,10 @@ function ActiveWorkout() {
       e.sets[i].done = !e.sets[i].done
       if (e.sets[i].done) {
         beep(S.sound, 1040, 0.12); vibrate(30)
+        // Personal record? Crown the set (prFlags is read again on render) and sound a
+        // fanfare the moment it's checked off — against history plus the sets already
+        // logged earlier in this same exercise.
+        if (m === 'reps' && (prFlags(S, e)[i] || []).length) { fanfare(S.sound); vibrate([60, 40, 60]) }
         const isLastExInUnit = idx === unit[unit.length - 1]
         const unitDone = unit.every(ui => (ui === idx ? e : A.entries[ui]).sets.every(x => x.done))
         if (isLastExInUnit && !unitDone) startRest(S.restSec)

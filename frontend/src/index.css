@@ -577,6 +577,11 @@ h4.sec{
 .setrow.eff3 .stp.eff button{width:20px}
 .setrow.eff3 .stp .num{font-size:14px}
 .setrow.done .n{background:var(--acc);color:var(--on-acc)}
+/* A set that set a personal record: the number gives way to a golden crown, and the row
+   stays full-strength rather than dimming with the rest of the done sets. */
+.setrow .n.pr{background:color-mix(in srgb,var(--yellow) 22%,transparent);color:var(--yellow)}
+.setrow .n.pr .icn{font-size:14px}
+.setrow.done.pr{opacity:1}
 .setrow.done{opacity:.45}
 /* why the next target is what it is (issue #17) */
 .progline{
